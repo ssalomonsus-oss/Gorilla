@@ -1,0 +1,32 @@
+name: Build AlwaysSprinting Mod
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      # 1️⃣ Checkout repo
+      - uses: actions/checkout@v4
+
+      # 2️⃣ Install .NET for compiling
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 6.0.x
+
+      # 3️⃣ Build the project
+      - name: Build Mod
+        run: dotnet build AlwaysSprinting.csproj -c Release
+
+      # 4️⃣ Upload DLL as artifact
+      - name: Upload DLL
+        uses: actions/upload-artifact@v4
+        with:
+          name: AlwaysSprinting-DLL
+          path: bin/Release/net472/*.dll
