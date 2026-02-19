@@ -1,4 +1,4 @@
-﻿using MelonLoader;
+using MelonLoader;
 using SLZ.Rig;
 using UnityEngine;
 
@@ -6,11 +6,11 @@ namespace AlwaysSprinting
 {
     public static class BuildInfo
     {
-        public const string Name = "AlwaysSprinting"; // Name of the Mod.  (MUST BE SET)
-        public const string Author = "Lanno"; // Author of the Mod.  (Set as null if none)
-        public const string Company = null; // Company that made the Mod.  (Set as null if none)
-        public const string Version = "0.0.0"; // Version of the Mod.  (MUST BE SET)
-        public const string DownloadLink = null; // Download Link for the Mod.  (Set as null if none)
+        public const string Name = "AlwaysSprinting";
+        public const string Author = "Lanno";
+        public const string Company = null;
+        public const string Version = "0.1.0";
+        public const string DownloadLink = null;
     }
 
     public class AlwaysSprinting : MelonMod
@@ -19,56 +19,58 @@ namespace AlwaysSprinting
         private PhysicsRig physicsRig;
         private PhysTorso physTorso;
 
-        private float defaultMaxVelocity;
-        private float previousMass;
-        private bool waitForVelocityChange;
+        private bool setupComplete = false;
 
         public override void OnSceneWasLoaded(int buildIndex, string sceneName)
         {
             rig = Object.FindObjectOfType<ControllerRig>();
             physicsRig = Object.FindObjectOfType<PhysicsRig>();
             physTorso = Object.FindObjectOfType<PhysTorso>();
+
+            setupComplete = false;
         }
 
-        public float GetMass()
+        // 🔧 Disable torso collisions but KEEP hands physical
+        private void DisableBodyCollisions()
         {
-            float mass = 0;
+            if (!physTorso) return;
 
-            if (physTorso)
-                mass = physTorso.rbChest.mass + physTorso.rbHead.mass + physTorso.rbPelvis.mass + physTorso.rbSpine.mass;
+            physTorso.rbChest.detectCollisions = false;
+            physTorso.rbHead.detectCollisions = false;
+            physTorso.rbPelvis.detectCollisions = false;
+            physTorso.rbSpine.detectCollisions = false;
 
-            return mass;
+            // Optional stability tweaks
+            physTorso.rbPelvis.drag = 0f;
+            physTorso.rbPelvis.angularDrag = 0.05f;
+        }
+
+        // 🔧 Disable Bonelab stick locomotion but keep UI working
+        private void DisableDefaultMovement()
+        {
+            if (!rig) return;
+
+            rig.maxVelocity = 0f;
+            rig._wasOverFlickThresh = false;
         }
 
         public override void OnUpdate()
         {
-            if (!rig || !physTorso)
+            if (!rig || !physicsRig || !physTorso)
                 return;
 
-            // Disable double tap sprint
-            if (rig._wasOverFlickThresh)
-                rig._wasOverFlickThresh = false;
-
-            // Use change in mass to check if avatar has changed. 
-            if (1.05 * previousMass <= GetMass() || GetMass() <= 0.95 * previousMass)
+            // Run one-time setup after rig is ready
+            if (!setupComplete)
             {
-                previousMass = GetMass();
-                waitForVelocityChange = true;
+                DisableBodyCollisions();
+                setupComplete = true;
+                MelonLogger.Msg("Gorilla base setup complete");
             }
 
-            // Check flag and wait for an unscaled velocity value to appear.
-            if (waitForVelocityChange && (rig.maxVelocity < 1.9f * defaultMaxVelocity || defaultMaxVelocity == 0))
-            {
-                defaultMaxVelocity = rig.maxVelocity;
-                waitForVelocityChange = false;
-            }
+            // Continuously suppress default locomotion
+            DisableDefaultMovement();
 
-            // Only change when flagged and when not moving vertically. The latter is to prevent errors if the change occurs 
-            // during freefall. The engine changes rig.maxVelocity during freefall to represent critical velocity.
-            if (!waitForVelocityChange && (-0.1 < physicsRig.wholeBodyVelocity.y && physicsRig.wholeBodyVelocity.y < 0.1))
-            {
-                rig.maxVelocity = 2.0f * defaultMaxVelocity;
-            }
+            // 🚧 Gorilla push movement will go HERE next step
         }
     }
 }
